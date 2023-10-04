@@ -380,6 +380,7 @@
                   <include>com.google.guava:guava</include>
                   <include>com.google.guava:failureaccess</include>
                   <include>io.perfmark:perfmark-api</include>
+                  <include>org.json:CDL</include>
                 </includes>
                 <excludes>
                   <exclude>io.netty:netty-transport-native-unix-common</exclude>
@@ -417,6 +418,10 @@
                 <relocation>
                   <pattern>com.google</pattern>
                   <shadedPattern>cdap.com.google</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.json</pattern>
+                  <shadedPattern>cdap.org.json</shadedPattern>
                 </relocation>
                 <!-- Entries to relocate netty native libraries  -->
                 <relocation>
@@ -466,6 +471,11 @@
           <artifactId>arrow-vector</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.json</groupId>
+      <artifactId>json</artifactId>
+      <version>20230618</version>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>

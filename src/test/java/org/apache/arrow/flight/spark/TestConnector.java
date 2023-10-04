@@ -15,28 +15,11 @@
  */
 package org.apache.arrow.flight.spark;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
-import java.util.function.Consumer;
-
-import org.apache.arrow.flight.Action;
-import org.apache.arrow.flight.FlightDescriptor;
-import org.apache.arrow.flight.FlightEndpoint;
-import org.apache.arrow.flight.FlightInfo;
-import org.apache.arrow.flight.FlightServer;
-import org.apache.arrow.flight.FlightTestUtil;
-import org.apache.arrow.flight.Location;
-import org.apache.arrow.flight.NoOpFlightProducer;
-import org.apache.arrow.flight.Result;
-import org.apache.arrow.flight.Ticket;
-import org.apache.arrow.flight.auth.ServerAuthHandler;
-import org.apache.arrow.flight.auth2.CallHeaderAuthenticator;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
+import org.apache.arrow.flight.*;
 import org.apache.arrow.flight.auth2.BasicCallHeaderAuthenticator;
+import org.apache.arrow.flight.auth2.CallHeaderAuthenticator;
 import org.apache.arrow.flight.auth2.GeneratedBearerTokenAuthenticator;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -58,9 +41,13 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.Test.None;
-import org.apache.arrow.flight.CallStatus;
-import com.google.common.collect.ImmutableList;
-import com.google.common.base.Strings;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 public class TestConnector {
   private static final String USERNAME_1 = "flight1";
@@ -68,6 +55,9 @@ public class TestConnector {
   private static final String NO_USERNAME = "";
   private static final String PASSWORD_1 = "woohoo1";
   private static final String PASSWORD_2 = "woohoo2";
+
+  private static final String TEST_FULL_COMMAND = "{\"command\": \"test_command\"}";
+  private static final String TEST_PROJECTION_COMMAND = "{\"command\": \"test_command\", \"columns\": [\"bid\", \"ask\", \"symbol\"]}";
 
   private static final BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
   private static Location location;
@@ -150,26 +140,26 @@ public class TestConnector {
 
   @Test
   public void testConnect() {
-    csc.read("test.table");
+    csc.read(TEST_FULL_COMMAND);
   }
 
   @Test
   public void testRead() {
-    long count = csc.read("test.table").count();
+    long count = csc.read(TEST_FULL_COMMAND).count();
     Assert.assertEquals(20, count);
   }
 
   @Test
   public void testSql() {
-    long count = csc.readSql("select * from test.table").count();
+    long count = csc.readSql(TEST_FULL_COMMAND).count();
     Assert.assertEquals(20, count);
   }
 
   @Test
   public void testFilter() {
-    Dataset<Row> df = csc.readSql("select * from test.table");
+    Dataset<Row> df = csc.readSql(TEST_FULL_COMMAND);
     long count = df.filter(df.col("symbol").equalTo("USDCAD")).count();
-    long countOriginal = csc.readSql("select * from test.table").count();
+    long countOriginal = csc.readSql(TEST_FULL_COMMAND).count();
     Assert.assertTrue(count < countOriginal);
   }
 
@@ -186,11 +176,11 @@ public class TestConnector {
 
   @Test
   public void testProject() {
-    Dataset<Row> df = csc.readSql("select * from test.table");
+    Dataset<Row> df = csc.readSql(TEST_FULL_COMMAND);
     SizeConsumer c = new SizeConsumer();
     df.select("bid", "ask", "symbol").toLocalIterator().forEachRemaining(c);
     long count = c.width;
-    long countOriginal = csc.readSql("select * from test.table").columns().length;
+    long countOriginal = csc.readSql(TEST_FULL_COMMAND).columns().length;
     Assert.assertTrue(count < countOriginal);
   }
 
@@ -207,14 +197,14 @@ public class TestConnector {
     @Override
     public FlightInfo getFlightInfo(CallContext context, FlightDescriptor descriptor) {
       Schema schema;
-      List<org.apache.arrow.flight.FlightEndpoint> endpoints;
+      List<FlightEndpoint> endpoints;
       if (parallel) {
         endpoints = ImmutableList.of(new FlightEndpoint(new Ticket(descriptor.getCommand()), location),
           new FlightEndpoint(new Ticket(descriptor.getCommand()), location));
       } else {
         endpoints = ImmutableList.of(new FlightEndpoint(new Ticket(descriptor.getCommand()), location));
       }
-      if (new String(descriptor.getCommand()).equals("select \"bid\", \"ask\", \"symbol\" from (select * from test.table))")) {
+      if (new String(descriptor.getCommand()).equals(TEST_PROJECTION_COMMAND)) {
         schema = new Schema(ImmutableList.of(
           Field.nullable("bid", Types.MinorType.FLOAT8.getType()),
           Field.nullable("ask", Types.MinorType.FLOAT8.getType()),
@@ -237,7 +227,7 @@ public class TestConnector {
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
       final int size = (new String(ticket.getBytes()).contains("USDCAD")) ? 5 : 10;
 
-      if (new String(ticket.getBytes()).equals("select \"bid\", \"ask\", \"symbol\" from (select * from test.table))")) {
+      if (new String(ticket.getBytes()).equals(TEST_PROJECTION_COMMAND)) {
         Float8Vector b = new Float8Vector("bid", allocator);
         Float8Vector a = new Float8Vector("ask", allocator);
         VarCharVector s = new VarCharVector("symbol", allocator);
