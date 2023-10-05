@@ -57,7 +57,7 @@ public class TestConnector {
   private static final String PASSWORD_2 = "woohoo2";
 
   private static final String TEST_FULL_COMMAND = "{\"command\": \"test_command\"}";
-  private static final String TEST_PROJECTION_COMMAND = "{\"command\": \"test_command\", \"columns\": [\"bid\", \"ask\", \"symbol\"]}";
+  private static final String TEST_PROJECTION_COMMAND = "{\"columns\":[\"bid\",\"ask\",\"symbol\"],\"command\":\"test_command\"}";
 
   private static final BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
   private static Location location;
@@ -204,6 +204,8 @@ public class TestConnector {
       } else {
         endpoints = ImmutableList.of(new FlightEndpoint(new Ticket(descriptor.getCommand()), location));
       }
+      String joe = new String(descriptor.getCommand());
+      System.out.println("getFlightInfo - Command: " + joe);
       if (new String(descriptor.getCommand()).equals(TEST_PROJECTION_COMMAND)) {
         schema = new Schema(ImmutableList.of(
           Field.nullable("bid", Types.MinorType.FLOAT8.getType()),
@@ -225,6 +227,9 @@ public class TestConnector {
 
     @Override
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
+      String ted = new String(ticket.getBytes());
+      System.out.println("getStream - ticket: " + ted);
+
       final int size = (new String(ticket.getBytes()).contains("USDCAD")) ? 5 : 10;
 
       if (new String(ticket.getBytes()).equals(TEST_PROJECTION_COMMAND)) {

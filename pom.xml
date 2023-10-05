@@ -380,7 +380,7 @@
                   <include>com.google.guava:guava</include>
                   <include>com.google.guava:failureaccess</include>
                   <include>io.perfmark:perfmark-api</include>
-                  <include>org.json:CDL</include>
+                  <include>org.json:*</include>
                 </includes>
                 <excludes>
                   <exclude>io.netty:netty-transport-native-unix-common</exclude>

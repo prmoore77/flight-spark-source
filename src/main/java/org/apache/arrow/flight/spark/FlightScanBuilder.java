@@ -50,7 +50,7 @@ import com.google.common.base.Joiner;
 
 public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredColumns, SupportsPushDownFilters {
   private static final Logger LOGGER = LoggerFactory.getLogger(FlightScanBuilder.class);
-  private static final Joiner WHERE_JOINER = Joiner.on(" and ");
+  private static final Joiner FILTER_JOINER = Joiner.on(",");
   private static final Joiner PROJ_JOINER = Joiner.on(", ");
   private SchemaResult flightSchema;
   private StructType schema;
@@ -94,6 +94,7 @@ public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredC
 
   private void getFlightSchema(FlightDescriptor descriptor) {
     try (Client client = new Client(location, clientOptions.getValue())) {
+      //System.out.println("getSchema() descriptor: " + descriptor);
       LOGGER.info("getSchema() descriptor: %s", descriptor);
       flightSchema = client.get().getSchema(descriptor, client.getCallOption());
     } catch (Exception e) {
@@ -144,34 +145,36 @@ public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredC
     return value.toString();
   }
 
-  private String generateWhereClause(List<Filter> pushed) {
-    List<String> filterStr = Lists.newArrayList();
+  private String generateFilterClause(List<Filter> pushed) {
+    List<String> filterStrList = Lists.newArrayList();
     for (Filter filter : pushed) {
       if (filter instanceof IsNotNull) {
-        filterStr.add(String.format("isnotnull(\"%s\")", ((IsNotNull) filter).attribute()));
+        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \"isnotnull\"}", ((IsNotNull) filter).attribute()));
       } else if (filter instanceof EqualTo) {
-        filterStr.add(String.format("\"%s\" = %s", ((EqualTo) filter).attribute(), valueToString(((EqualTo) filter).value())));
+        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \"=\", \"value\": \"%s\"}", ((EqualTo) filter).attribute(), valueToString(((EqualTo) filter).value())));
       } else if (filter instanceof GreaterThan) {
-        filterStr.add(String.format("\"%s\" > %s", ((GreaterThan) filter).attribute(), valueToString(((GreaterThan) filter).value())));
+        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \">\", \"value\": \"%s\"}", ((GreaterThan) filter).attribute(), valueToString(((GreaterThan) filter).value())));
       } else if (filter instanceof GreaterThanOrEqual) {
-        filterStr.add(String.format("\"%s\" <= %s", ((GreaterThanOrEqual) filter).attribute(), valueToString(((GreaterThanOrEqual) filter).value())));
+        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \">=\", \"value\": \"%s\"}", ((GreaterThanOrEqual) filter).attribute(), valueToString(((GreaterThanOrEqual) filter).value())));
       } else if (filter instanceof LessThan) {
-        filterStr.add(String.format("\"%s\" < %s", ((LessThan) filter).attribute(), valueToString(((LessThan) filter).value())));
+        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \"<\", \"value\": \"%s\"}", ((LessThan) filter).attribute(), valueToString(((LessThan) filter).value())));
       } else if (filter instanceof LessThanOrEqual) {
-        filterStr.add(String.format("\"%s\" <= %s", ((LessThanOrEqual) filter).attribute(), valueToString(((LessThanOrEqual) filter).value())));
+        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \">=\", \"value\": \"%s\"}", ((LessThanOrEqual) filter).attribute(), valueToString(((LessThanOrEqual) filter).value())));
       }
       //todo fill out rest of Filter types
     }
-    return WHERE_JOINER.join(filterStr);
+    return FILTER_JOINER.join(filterStrList);
   }
 
   private FlightDescriptor getDescriptor(String sql) {
     return FlightDescriptor.command(sql.getBytes());
   }
 
-  private void mergeWhereDescriptors(String whereClause) {
-    sql = String.format("select * from (%s) as where_merge where %s", sql, whereClause);
-    descriptor = getDescriptor(sql);
+  private void mergeFilterDescriptors(String filterClause) {
+    JSONObject jsonObject = new JSONObject(sql);
+    JSONArray filterArray = new JSONArray("[" + filterClause + "]");
+    jsonObject.put("filters", filterArray);
+    descriptor = getDescriptor(jsonObject.toString());
   }
 
   @Override
@@ -188,8 +191,8 @@ public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredC
     }
     this.pushed = pushed.toArray(new Filter[0]);
     if (!pushed.isEmpty()) {
-      String whereClause = generateWhereClause(pushed);
-      mergeWhereDescriptors(whereClause);
+      String filterClause = generateFilterClause(pushed);
+      mergeFilterDescriptors(filterClause);
       getFlightSchema(descriptor);
     }
     return notPushed.toArray(new Filter[0]);

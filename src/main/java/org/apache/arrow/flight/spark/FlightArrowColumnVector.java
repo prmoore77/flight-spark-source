@@ -53,7 +53,7 @@ import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.holders.NullableVarCharHolder;
 import org.apache.arrow.memory.ArrowBuf;
-import org.apache.spark.sql.util.ArrowUtils;
+import org.apache.spark.sql.execution.arrow.FlightArrowUtils;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
@@ -175,7 +175,7 @@ public final class FlightArrowColumnVector extends ColumnVector {
   }
 
   public FlightArrowColumnVector(ValueVector vector) {
-    super(ArrowUtils.fromArrowField(vector.getField()));
+    super(FlightArrowUtils.fromArrowField(vector.getField()));
 
     if (vector instanceof BitVector) {
       accessor = new BooleanAccessor((BitVector) vector);
@@ -478,7 +478,7 @@ public final class FlightArrowColumnVector extends ColumnVector {
 
     @Override
     final int getInt(int rowId) {
-      System.out.println(accessor.get(rowId) + " " + (accessor.get(rowId) * val) + " " + val);
+      // System.out.println(accessor.get(rowId) + " " + (accessor.get(rowId) * val) + " " + val);
       return (int) (accessor.get(rowId) * val);
     }
   }
