@@ -174,7 +174,8 @@ public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredC
     JSONObject jsonObject = new JSONObject(sql);
     JSONArray filterArray = new JSONArray("[" + filterClause + "]");
     jsonObject.put("filters", filterArray);
-    descriptor = getDescriptor(jsonObject.toString());
+    sql = jsonObject.toString();
+    descriptor = getDescriptor(sql);
   }
 
   @Override
@@ -288,7 +289,8 @@ public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredC
       JSONArray columnArray = CDL.rowToJSONArray(new JSONTokener(projClause));
 
       jsonObject.put("columns", columnArray);
-      descriptor = getDescriptor(jsonObject.toString());
+      sql = jsonObject.toString();
+      descriptor = getDescriptor(sql);
     } catch (Exception e) {
       String error_context = " - Error context: mergeProjDescriptors() - projClause: '" + projClause + "', sql: '" + sql + "'";
       throw new RuntimeException(e + error_context);
