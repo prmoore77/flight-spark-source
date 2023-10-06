@@ -119,7 +119,8 @@ public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredC
   private boolean canBePushed(Filter filter) {
     if (filter instanceof IsNotNull) {
       return true;
-    } else if (filter instanceof EqualTo) {
+    }
+    if (filter instanceof EqualTo) {
       return true;
     }
     if (filter instanceof GreaterThan) {
@@ -145,26 +146,50 @@ public class FlightScanBuilder implements ScanBuilder, SupportsPushDownRequiredC
     return value.toString();
   }
 
+  private String handleValueQuote(Object value) {
+    if (value instanceof String) {
+      return String.format("\"%s\"", value);
+    }
+    return value.toString();
+  }
+
   private String generateFilterClause(List<Filter> pushed) {
     List<String> filterStrList = Lists.newArrayList();
     for (Filter filter : pushed) {
-      if (filter instanceof IsNotNull) {
-        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \"isnotnull\"}", ((IsNotNull) filter).attribute()));
-      } else if (filter instanceof EqualTo) {
-        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \"=\", \"value\": \"%s\"}", ((EqualTo) filter).attribute(), valueToString(((EqualTo) filter).value())));
+      String column = filter.references()[0];
+      String operator = "";
+      String valueStr = "";
+
+      if (filter instanceof EqualTo) {
+        operator = "=";
+        valueStr = handleValueQuote(((EqualTo) filter).value());
       } else if (filter instanceof GreaterThan) {
-        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \">\", \"value\": \"%s\"}", ((GreaterThan) filter).attribute(), valueToString(((GreaterThan) filter).value())));
+        operator = ">";
+        valueStr = handleValueQuote(((GreaterThan) filter).value());
       } else if (filter instanceof GreaterThanOrEqual) {
-        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \">=\", \"value\": \"%s\"}", ((GreaterThanOrEqual) filter).attribute(), valueToString(((GreaterThanOrEqual) filter).value())));
+        operator = ">=";
+        valueStr = handleValueQuote(((GreaterThanOrEqual) filter).value());
       } else if (filter instanceof LessThan) {
-        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \"<\", \"value\": \"%s\"}", ((LessThan) filter).attribute(), valueToString(((LessThan) filter).value())));
+        operator = "<";
+        valueStr = handleValueQuote(((LessThan) filter).value());
       } else if (filter instanceof LessThanOrEqual) {
-        filterStrList.add(String.format("{\"column\": \"%s\", \"operator\": \">=\", \"value\": \"%s\"}", ((LessThanOrEqual) filter).attribute(), valueToString(((LessThanOrEqual) filter).value())));
+        operator = "<=";
+        valueStr = handleValueQuote(((LessThanOrEqual) filter).value());
       }
-      //todo fill out rest of Filter types
+
+      if (!operator.isEmpty()) {
+        String filterStr = String.format("{\"column\": \"%s\", \"operator\": \"%s\"", column, operator);
+        if (!valueStr.isEmpty()) {
+          filterStr += String.format(", \"value\": %s", valueStr);
+        }
+        filterStr += "}";
+        filterStrList.add(filterStr);
+      }
     }
+
     return FILTER_JOINER.join(filterStrList);
   }
+
 
   private FlightDescriptor getDescriptor(String sql) {
     return FlightDescriptor.command(sql.getBytes());
